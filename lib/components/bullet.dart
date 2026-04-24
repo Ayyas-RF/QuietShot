@@ -5,7 +5,7 @@ import '../utils/constants.dart';
 import 'obstacle.dart';
 import '../game/quiet_shot_game.dart';
 
-class Bullet extends CircleComponent with CollisionCallbacks, HasGameRef<QuietShotGame> {
+class Bullet extends CircleComponent with CollisionCallbacks, HasGameReference<QuietShotGame> {
   final Vector2 direction;
   final bool isPlayerBullet;
 
@@ -29,7 +29,7 @@ class Bullet extends CircleComponent with CollisionCallbacks, HasGameRef<QuietSh
 
     // Remove if it goes way off screen
     if (position.x < -100 || position.y < -100 || 
-        position.x > gameRef.size.x + 100 || position.y > gameRef.size.y + 100) {
+        position.x > game.size.x + 100 || position.y > game.size.y + 100) {
       removeFromParent();
     }
   }

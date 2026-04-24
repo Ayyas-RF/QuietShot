@@ -8,7 +8,7 @@ import '../game/quiet_shot_game.dart';
 
 import 'package:flame/collisions.dart';
 
-class FOVCone extends PositionComponent with HasGameRef<QuietShotGame> {
+class FOVCone extends PositionComponent with HasGameReference<QuietShotGame> {
   final Paint _paint;
   final List<Vector2> _polygonVertices = [];
 
@@ -47,7 +47,7 @@ class FOVCone extends PositionComponent with HasGameRef<QuietShotGame> {
 
       Ray2 ray = Ray2(origin: origin, direction: direction);
       
-      final raycastResult = gameRef.collisionDetection.raycast(
+      final raycastResult = game.collisionDetection.raycast(
         ray,
         maxDistance: GameConstants.fovDistance,
         ignoreHitboxes: (parent as PositionComponent).children.whereType<ShapeHitbox>().toList(),

@@ -7,10 +7,12 @@ import '../utils/constants.dart';
 import '../game/quiet_shot_game.dart';
 import 'bullet.dart';
 import 'fov_cone.dart';
+import 'obstacle.dart';
 
 class Player extends SpriteComponent
-    with KeyboardHandler, CollisionCallbacks, HasGameRef<QuietShotGame> {
+    with KeyboardHandler, CollisionCallbacks, HasGameReference<QuietShotGame> {
   Vector2 _movement = Vector2.zero();
+  Vector2 _lastPosition = Vector2.zero();
   double _rotationSpeed = 0.0;
   
   double health = 100.0;
@@ -90,15 +92,16 @@ class Player extends SpriteComponent
   @override
   void update(double dt) {
     super.update(dt);
-
     if (health <= 0) return;
+
+    _lastPosition = position.clone();
 
     // Movement
     position += _movement * GameConstants.playerSpeed * dt;
 
     // Keep within world bounds (assume 800x600 for now, override later if game has camera)
-    position.x = position.x.clamp(0, gameRef.size.x);
-    position.y = position.y.clamp(0, gameRef.size.y);
+    position.x = position.x.clamp(0, game.size.x);
+    position.y = position.y.clamp(0, game.size.y);
 
     // Aiming
     angle += _rotationSpeed * dt;
@@ -114,7 +117,7 @@ class Player extends SpriteComponent
       if (_reloadTimer <= 0) {
         ammo = GameConstants.ammoPerMag;
         isReloading = false;
-        gameRef.hudNotifier.value = gameRef.hudNotifier.value.copyWith(playerAmmo: ammo);
+        game.hudNotifier.value = game.hudNotifier.value.copyWith(playerAmmo: ammo);
       }
     } else if (ammo == 0) {
       _startReload();
@@ -128,7 +131,7 @@ class Player extends SpriteComponent
   void _startReload() {
     isReloading = true;
     _reloadTimer = GameConstants.reloadTime;
-    gameRef.hudNotifier.value = gameRef.hudNotifier.value.copyWith(playerReloading: true);
+    game.hudNotifier.value = game.hudNotifier.value.copyWith(playerReloading: true);
   }
 
   void shoot() {
@@ -136,13 +139,13 @@ class Player extends SpriteComponent
 
     ammo -= 1;
     _fireCooldownTimer = GameConstants.fireCooldown;
-    gameRef.hudNotifier.value = gameRef.hudNotifier.value.copyWith(playerAmmo: ammo);
+    game.hudNotifier.value = game.hudNotifier.value.copyWith(playerAmmo: ammo);
 
     Vector2 fireDirection = Vector2(cos(angle), sin(angle));
     // Spawn bullet slightly in front to avoid shooting self
     Vector2 spawnPos = position + fireDirection * (GameConstants.playerSize);
     
-    gameRef.add(Bullet(
+    game.add(Bullet(
       position: spawnPos,
       direction: fireDirection,
       isPlayerBullet: true,
@@ -162,8 +165,13 @@ class Player extends SpriteComponent
       other.removeFromParent();
       if (health <= 0) {
         health = 0;
-        gameRef.onPlayerDied();
+        game.onPlayerDied();
       }
+    }
+
+    if (other is Obstacle) {
+      // Simple blocking: revert to last safe position
+      position = _lastPosition;
     }
   }
 }

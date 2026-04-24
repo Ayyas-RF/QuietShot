@@ -7,11 +7,12 @@ import 'package:flutter/material.dart';
 import '../utils/constants.dart';
 import '../game/quiet_shot_game.dart';
 import 'bullet.dart';
+import 'obstacle.dart';
 
-class EnemyBot extends SpriteComponent with CollisionCallbacks, HasGameRef<QuietShotGame> {
+class EnemyBot extends SpriteComponent with CollisionCallbacks, HasGameReference<QuietShotGame> {
   double health = 100.0;
   int ammo = GameConstants.ammoPerMag;
-  
+  Vector2 _lastPosition = Vector2.zero();
   double _reloadTimer = 0.0;
   bool isReloading = false;
   
@@ -53,8 +54,8 @@ class EnemyBot extends SpriteComponent with CollisionCallbacks, HasGameRef<Quiet
   void _setNewPatrolTarget() {
     final random = Random();
     _patrolTarget = Vector2(
-      random.nextDouble() * gameRef.size.x, 
-      random.nextDouble() * gameRef.size.y
+      random.nextDouble() * game.size.x, 
+      random.nextDouble() * game.size.y
     );
     _patrolTimer = 2.0 + random.nextDouble() * 3.0;
   }
@@ -63,6 +64,8 @@ class EnemyBot extends SpriteComponent with CollisionCallbacks, HasGameRef<Quiet
   void update(double dt) {
     super.update(dt);
     if (health <= 0) return;
+
+    _lastPosition = position.clone();
 
     _checkVisibility();
 
@@ -86,7 +89,7 @@ class EnemyBot extends SpriteComponent with CollisionCallbacks, HasGameRef<Quiet
   }
 
   void _checkVisibility() {
-    final player = gameRef.player;
+    final player = game.player;
     final distance = position.distanceTo(player.position);
 
     // If out of range or behind wall, hidden
@@ -105,7 +108,7 @@ class EnemyBot extends SpriteComponent with CollisionCallbacks, HasGameRef<Quiet
     }
 
     final ray = Ray2(origin: player.position, direction: dirToBot);
-    final raycastResult = gameRef.collisionDetection.raycast(
+    final raycastResult = game.collisionDetection.raycast(
       ray,
       maxDistance: distance,
       ignoreHitboxes: [player.hitbox, hitbox],
@@ -115,14 +118,14 @@ class EnemyBot extends SpriteComponent with CollisionCallbacks, HasGameRef<Quiet
   }
 
   void _aiBehavior(double dt) {
-    final player = gameRef.player;
+    final player = game.player;
     final distance = position.distanceTo(player.position);
     
     bool canSeePlayer = false;
     if (distance < 400) {
       final dirToPlayer = (player.position - position).normalized();
       final ray = Ray2(origin: position, direction: dirToPlayer);
-      final raycastResult = gameRef.collisionDetection.raycast(
+      final raycastResult = game.collisionDetection.raycast(
         ray, maxDistance: distance, ignoreHitboxes: [hitbox, player.hitbox]
       );
       if (raycastResult == null || !raycastResult.isActive) {
@@ -163,7 +166,7 @@ class EnemyBot extends SpriteComponent with CollisionCallbacks, HasGameRef<Quiet
     Vector2 fireDirection = Vector2(cos(angle), sin(angle));
     Vector2 spawnPos = position + fireDirection * (GameConstants.playerSize / 2);
     
-    gameRef.add(Bullet(
+    game.add(Bullet(
       position: spawnPos,
       direction: fireDirection,
       isPlayerBullet: false,
@@ -190,8 +193,12 @@ class EnemyBot extends SpriteComponent with CollisionCallbacks, HasGameRef<Quiet
       other.removeFromParent();
       if (health <= 0) {
         health = 0;
-        gameRef.onBotDied();
+        game.onBotDied();
       }
+    }
+
+    if (other is Obstacle) {
+      position = _lastPosition;
     }
   }
 }
