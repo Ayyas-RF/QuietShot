@@ -1,4 +1,4 @@
-# quiet_shot
+# QuietShot
 
 A new Flutter project.
 
