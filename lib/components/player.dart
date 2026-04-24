@@ -12,7 +12,6 @@ import 'obstacle.dart';
 class Player extends SpriteComponent
     with KeyboardHandler, CollisionCallbacks, HasGameReference<QuietShotGame> {
   Vector2 _movement = Vector2.zero();
-  Vector2 _lastPosition = Vector2.zero();
   double _rotationSpeed = 0.0;
   
   double health = 100.0;
@@ -94,14 +93,37 @@ class Player extends SpriteComponent
     super.update(dt);
     if (health <= 0) return;
 
-    _lastPosition = position.clone();
-
-    // Movement
-    position += _movement * GameConstants.playerSpeed * dt;
-
-    // Keep within world bounds (assume 800x600 for now, override later if game has camera)
+    // Separate X movement to allow sliding
+    double dx = _movement.x * GameConstants.playerSpeed * dt;
+    position.x += dx;
+    
+    // Bounds check
     position.x = position.x.clamp(0, game.size.x);
+    
+    // Check if X move caused collision with any Obstacle
+    for (final other in game.children.whereType<Obstacle>()) {
+      final otherHitbox = other.children.whereType<ShapeHitbox>().first;
+      if (hitbox.toAbsoluteRect().overlaps(otherHitbox.toAbsoluteRect())) {
+        position.x -= dx;
+        break;
+      }
+    }
+
+    // Separate Y movement to allow sliding
+    double dy = _movement.y * GameConstants.playerSpeed * dt;
+    position.y += dy;
+    
+    // Bounds check
     position.y = position.y.clamp(0, game.size.y);
+    
+    // Check if Y move caused collision with any Obstacle
+    for (final other in game.children.whereType<Obstacle>()) {
+      final otherHitbox = other.children.whereType<ShapeHitbox>().first;
+      if (hitbox.toAbsoluteRect().overlaps(otherHitbox.toAbsoluteRect())) {
+        position.y -= dy;
+        break;
+      }
+    }
 
     // Aiming
     angle += _rotationSpeed * dt;
@@ -167,11 +189,6 @@ class Player extends SpriteComponent
         health = 0;
         game.onPlayerDied();
       }
-    }
-
-    if (other is Obstacle) {
-      // Simple blocking: revert to last safe position
-      position = _lastPosition;
     }
   }
 }

@@ -12,9 +12,9 @@ import 'obstacle.dart';
 class EnemyBot extends SpriteComponent with CollisionCallbacks, HasGameReference<QuietShotGame> {
   double health = 100.0;
   int ammo = GameConstants.ammoPerMag;
-  Vector2 _lastPosition = Vector2.zero();
-  double _reloadTimer = 0.0;
   bool isReloading = false;
+  
+  double _reloadTimer = 0.0;
   
   double _fireCooldownTimer = 0.0;
   double _patrolTimer = 0.0;
@@ -64,8 +64,6 @@ class EnemyBot extends SpriteComponent with CollisionCallbacks, HasGameReference
   void update(double dt) {
     super.update(dt);
     if (health <= 0) return;
-
-    _lastPosition = position.clone();
 
     _checkVisibility();
 
@@ -156,7 +154,27 @@ class EnemyBot extends SpriteComponent with CollisionCallbacks, HasGameReference
       
       final dir = (_patrolTarget - position).normalized();
       angle = lerpDouble(angle, atan2(dir.y, dir.x), 0.1) ?? angle;
-      position += dir * GameConstants.botSpeed * dt;
+      
+      // Separate X and Y for sliding
+      double dx = dir.x * GameConstants.botSpeed * dt;
+      position.x += dx;
+      for (final other in game.children.whereType<Obstacle>()) {
+        final otherHitbox = other.children.whereType<ShapeHitbox>().first;
+        if (hitbox.toAbsoluteRect().overlaps(otherHitbox.toAbsoluteRect())) {
+          position.x -= dx;
+          break;
+        }
+      }
+
+      double dy = dir.y * GameConstants.botSpeed * dt;
+      position.y += dy;
+      for (final other in game.children.whereType<Obstacle>()) {
+        final otherHitbox = other.children.whereType<ShapeHitbox>().first;
+        if (hitbox.toAbsoluteRect().overlaps(otherHitbox.toAbsoluteRect())) {
+          position.y -= dy;
+          break;
+        }
+      }
     }
   }
 
@@ -203,10 +221,6 @@ class EnemyBot extends SpriteComponent with CollisionCallbacks, HasGameReference
         health = 0;
         game.onBotDied();
       }
-    }
-
-    if (other is Obstacle) {
-      position = _lastPosition;
     }
   }
 }
