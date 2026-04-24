@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui' as ui;
 import 'package:flame/components.dart';
 import 'package:flame/geometry.dart';
 import 'package:flutter/material.dart';
@@ -76,6 +77,18 @@ class FOVCone extends PositionComponent with HasGameRef<QuietShotGame> {
       path.lineTo(_polygonVertices[i].x, _polygonVertices[i].y);
     }
     path.close();
+
+    // Tactical Flashlight Gradient
+    _paint.shader = ui.Gradient.radial(
+      Offset.zero,
+      GameConstants.fovDistance,
+      [
+        Colors.yellow.withValues(alpha: 0.3),
+        Colors.yellow.withValues(alpha: 0.1),
+        Colors.transparent,
+      ],
+      [0.0, 0.6, 1.0],
+    );
 
     canvas.drawPath(path, _paint);
   }

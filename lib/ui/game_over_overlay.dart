@@ -31,8 +31,8 @@ class GameOverOverlay extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  Text(
-                    state.winner,
+                    Text(
+                      state.winner ?? '',
                     style: const TextStyle(
                       color: Colors.yellowAccent,
                       fontSize: 32,
@@ -41,10 +41,7 @@ class GameOverOverlay extends StatelessWidget {
                   const SizedBox(height: 40),
                   ElevatedButton(
                     onPressed: () {
-                      // Simple way to restart the game is to remove the game engine and add it again,
-                      // but since we don't have a state manager above GameWidget implemented,
-                      // we can just reset game state here or reload the window for web/desktop.
-                      // Alternatively, call a reset method on `game`.
+                      game.resetGame();
                     },
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),

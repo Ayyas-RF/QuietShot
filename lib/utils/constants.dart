@@ -2,9 +2,14 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
 class GameConstants {
-  static const double playerSpeed = 150.0;
+  static const String playerSprite = 'player.png';
+  static const String enemySprite = 'enemy.png';
+  static const String crateSprite = 'crate.png';
+  static const String serverUrl = 'ws://localhost:8080/ws';
+
+  static const double playerSpeed = 200.0;
   static const double botSpeed = 100.0;
-  static const double bulletSpeed = 500.0;
+  static const double bulletSpeed = 700.0;
   
   static const double obstacleSize = 64.0;
   static const double playerSize = 32.0;

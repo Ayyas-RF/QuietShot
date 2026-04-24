@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui';
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 import 'package:flame/geometry.dart';
@@ -7,7 +8,7 @@ import '../utils/constants.dart';
 import '../game/quiet_shot_game.dart';
 import 'bullet.dart';
 
-class Bot extends RectangleComponent with CollisionCallbacks, HasGameRef<QuietShotGame> {
+class EnemyBot extends SpriteComponent with CollisionCallbacks, HasGameRef<QuietShotGame> {
   double health = 100.0;
   int ammo = GameConstants.ammoPerMag;
   
@@ -18,18 +19,26 @@ class Bot extends RectangleComponent with CollisionCallbacks, HasGameRef<QuietSh
   double _patrolTimer = 0.0;
   Vector2 _patrolTarget = Vector2.zero();
 
-  late RectangleHitbox hitbox;
+  late ShapeHitbox hitbox;
   late final RectangleComponent _healthBar;
-  bool isVisibleToPlayer = true;
+  bool isVisibleToPlayer = false;
 
-  Bot({required Vector2 position})
+  EnemyBot({required Vector2 position})
       : super(
           position: position,
           size: Vector2.all(GameConstants.playerSize),
           anchor: Anchor.center,
-          paint: Paint()..color = GameConstants.botColor,
-        ) {
-    hitbox = RectangleHitbox();
+        );
+
+  @override
+  Future<void> onLoad() async {
+    sprite = await Sprite.load(GameConstants.enemySprite);
+    
+    // Accurate Hitbox: Slightly smaller than the sprite for better gameplay feel
+    hitbox = RectangleHitbox(
+      size: size * 0.8,
+      position: size * 0.1,
+    );
     add(hitbox);
 
     _healthBar = RectangleComponent(
@@ -43,9 +52,11 @@ class Bot extends RectangleComponent with CollisionCallbacks, HasGameRef<QuietSh
 
   void _setNewPatrolTarget() {
     final random = Random();
-    // Assuming 800x600, game limits
-    _patrolTarget = Vector2(random.nextDouble() * 800, random.nextDouble() * 600);
-    _patrolTimer = 3.0;
+    _patrolTarget = Vector2(
+      random.nextDouble() * gameRef.size.x, 
+      random.nextDouble() * gameRef.size.y
+    );
+    _patrolTimer = 2.0 + random.nextDouble() * 3.0;
   }
 
   @override
@@ -62,7 +73,6 @@ class Bot extends RectangleComponent with CollisionCallbacks, HasGameRef<QuietSh
       if (_reloadTimer <= 0) {
         ammo = GameConstants.ammoPerMag;
         isReloading = false;
-        gameRef.hudNotifier.value = gameRef.hudNotifier.value.copyWith(botAmmo: ammo);
       }
     } else if (ammo == 0) {
       _startReload();
@@ -79,47 +89,37 @@ class Bot extends RectangleComponent with CollisionCallbacks, HasGameRef<QuietSh
     final player = gameRef.player;
     final distance = position.distanceTo(player.position);
 
+    // If out of range or behind wall, hidden
     if (distance > GameConstants.fovDistance) {
       isVisibleToPlayer = false;
       return;
     }
 
-    // Check angle
     final dirToBot = (position - player.position).normalized();
     final playerDir = Vector2(cos(player.angle), sin(player.angle));
-    final dotProduct = dirToBot.dot(playerDir);
-    final angleDiff = acos(dotProduct.clamp(-1.0, 1.0));
+    final angleDiff = acos(dirToBot.dot(playerDir).clamp(-1.0, 1.0));
 
     if (angleDiff > GameConstants.fovAngle / 2) {
       isVisibleToPlayer = false;
       return;
     }
 
-    // Check Line of Sight (Raycast)
     final ray = Ray2(origin: player.position, direction: dirToBot);
     final raycastResult = gameRef.collisionDetection.raycast(
       ray,
       maxDistance: distance,
-      ignoreHitboxes: [player.hitbox, hitbox], // ignore player and bot hitboxes
+      ignoreHitboxes: [player.hitbox, hitbox],
     );
 
-    // If it hit something before the bot, it's blocked by an obstacle
-    if (raycastResult != null && raycastResult.isActive) {
-      isVisibleToPlayer = false;
-    } else {
-      isVisibleToPlayer = true;
-    }
+    isVisibleToPlayer = raycastResult == null || !raycastResult.isActive;
   }
 
   void _aiBehavior(double dt) {
     final player = gameRef.player;
     final distance = position.distanceTo(player.position);
     
-    // Simple state: If can see player, aim and shoot. Else patrol.
     bool canSeePlayer = false;
-    
-    // AI sight check is simpler, just distance and raycast
-    if (distance < 500) {
+    if (distance < 400) {
       final dirToPlayer = (player.position - position).normalized();
       final ray = Ray2(origin: position, direction: dirToPlayer);
       final raycastResult = gameRef.collisionDetection.raycast(
@@ -131,33 +131,27 @@ class Bot extends RectangleComponent with CollisionCallbacks, HasGameRef<QuietSh
     }
 
     if (canSeePlayer) {
-      // Aim at player
+      // Aim and attack
       angle = atan2(player.position.y - position.y, player.position.x - position.x);
-      
-      // Stop moving and shoot
       if (_fireCooldownTimer <= 0 && !isReloading) {
         _shoot();
       }
     } else {
-      // Patrol
+      // Patrol logic
       _patrolTimer -= dt;
-      if (_patrolTimer <= 0 || position.distanceTo(_patrolTarget) < 10) {
+      if (_patrolTimer <= 0 || position.distanceTo(_patrolTarget) < 20) {
         _setNewPatrolTarget();
       }
       
       final dir = (_patrolTarget - position).normalized();
-      angle = atan2(dir.y, dir.x);
+      angle = lerpDouble(angle, atan2(dir.y, dir.x), 0.1) ?? angle;
       position += dir * GameConstants.botSpeed * dt;
-
-      position.x = position.x.clamp(0, gameRef.size.x);
-      position.y = position.y.clamp(0, gameRef.size.y);
     }
   }
 
   void _startReload() {
     isReloading = true;
     _reloadTimer = GameConstants.reloadTime;
-    gameRef.hudNotifier.value = gameRef.hudNotifier.value.copyWith(botReloading: true);
   }
 
   void _shoot() {
@@ -165,20 +159,15 @@ class Bot extends RectangleComponent with CollisionCallbacks, HasGameRef<QuietSh
 
     ammo -= 1;
     _fireCooldownTimer = GameConstants.fireCooldown;
-    gameRef.hudNotifier.value = gameRef.hudNotifier.value.copyWith(botAmmo: ammo);
 
     Vector2 fireDirection = Vector2(cos(angle), sin(angle));
-    Vector2 spawnPos = position + fireDirection * (GameConstants.playerSize);
+    Vector2 spawnPos = position + fireDirection * (GameConstants.playerSize / 2);
     
     gameRef.add(Bullet(
       position: spawnPos,
       direction: fireDirection,
       isPlayerBullet: false,
     ));
-
-    if (ammo == 0) {
-      _startReload();
-    }
   }
 
   @override
@@ -189,14 +178,13 @@ class Bot extends RectangleComponent with CollisionCallbacks, HasGameRef<QuietSh
 
   @override
   void renderTree(Canvas canvas) {
-     if (!isVisibleToPlayer) return; // Hide bot and its health bar if not visible
+     if (!isVisibleToPlayer) return;
      super.renderTree(canvas);
   }
 
   @override
   void onCollision(Set<Vector2> intersectionPoints, PositionComponent other) {
     super.onCollision(intersectionPoints, other);
-
     if (other is Bullet && other.isPlayerBullet) {
       health -= 25;
       other.removeFromParent();

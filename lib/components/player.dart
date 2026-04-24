@@ -8,7 +8,7 @@ import '../game/quiet_shot_game.dart';
 import 'bullet.dart';
 import 'fov_cone.dart';
 
-class Player extends RectangleComponent
+class Player extends SpriteComponent
     with KeyboardHandler, CollisionCallbacks, HasGameRef<QuietShotGame> {
   Vector2 _movement = Vector2.zero();
   double _rotationSpeed = 0.0;
@@ -29,9 +29,17 @@ class Player extends RectangleComponent
           position: position,
           size: Vector2.all(GameConstants.playerSize),
           anchor: Anchor.center,
-          paint: Paint()..color = GameConstants.playerColor,
-        ) {
-    hitbox = RectangleHitbox();
+        );
+
+  @override
+  Future<void> onLoad() async {
+    sprite = await Sprite.load(GameConstants.playerSprite);
+    
+    // Proper Hitbox: Slightly smaller than sprite for tighter gameplay
+    hitbox = RectangleHitbox(
+      size: size * 0.8,
+      position: size * 0.1,
+    );
     add(hitbox);
     add(FOVCone());
 
@@ -150,7 +158,7 @@ class Player extends RectangleComponent
     super.onCollision(intersectionPoints, other);
 
     if (other is Bullet && !other.isPlayerBullet) {
-      health -= 15;
+      health -= 25; // Proper damage
       other.removeFromParent();
       if (health <= 0) {
         health = 0;

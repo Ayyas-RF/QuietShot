@@ -1,44 +1,46 @@
+import 'dart:math';
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
-import '../components/bot.dart';
+import '../components/enemy_bot.dart';
 import '../components/obstacle.dart';
 import '../components/player.dart';
 import '../utils/constants.dart';
+import 'map_generator.dart';
 
 class HudState {
   final int playerAmmo;
-  final bool playerReloading;
   final int botAmmo;
-  final bool botReloading;
   final int timeRemaining;
-  final String winner;
+  final String? winner;
+  final bool playerReloading;
+  final bool botReloading;
 
   HudState({
     required this.playerAmmo,
     required this.botAmmo,
     required this.timeRemaining,
+    this.winner,
     this.playerReloading = false,
     this.botReloading = false,
-    this.winner = '',
   });
 
   HudState copyWith({
-    int? playerAmmo,
-    bool? playerReloading,
-    int? botAmmo,
-    bool? botReloading,
-    int? timeRemaining,
+    int? playerAmmo, 
+    int? botAmmo, 
+    int? timeRemaining, 
     String? winner,
+    bool? playerReloading,
+    bool? botReloading,
   }) {
     return HudState(
       playerAmmo: playerAmmo ?? this.playerAmmo,
-      playerReloading: playerReloading ?? this.playerReloading,
       botAmmo: botAmmo ?? this.botAmmo,
-      botReloading: botReloading ?? this.botReloading,
       timeRemaining: timeRemaining ?? this.timeRemaining,
       winner: winner ?? this.winner,
+      playerReloading: playerReloading ?? this.playerReloading,
+      botReloading: botReloading ?? this.botReloading,
     );
   }
 }
@@ -46,7 +48,7 @@ class HudState {
 class QuietShotGame extends FlameGame
     with HasCollisionDetection, HasKeyboardHandlerComponents {
   late Player player;
-  late Bot bot;
+  late EnemyBot bot;
   
   final ValueNotifier<HudState> hudNotifier = ValueNotifier(
     HudState(playerAmmo: GameConstants.ammoPerMag, botAmmo: GameConstants.ammoPerMag, timeRemaining: 120),
@@ -54,45 +56,54 @@ class QuietShotGame extends FlameGame
 
   double _timer = 120.0;
   bool _isGameOver = false;
-
-  @override
-  Color backgroundColor() => const Color(0xFF1E1E1E); // Dark background
+  bool _isMatchStarted = false;
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
+    // Initially, we just show the menu. Match starts via startMatch().
+  }
 
+  void startMatch() {
+    _isMatchStarted = true;
+    _isGameOver = false;
+    _timer = 120.0;
+    
+    // Clear everything
+    removeAll(children);
+    
     // Map boundaries
-    add(Obstacle(position: Vector2(-50, -50), size: Vector2(size.x + 100, 50))); // Top
-    add(Obstacle(position: Vector2(-50, size.y), size: Vector2(size.x + 100, 50))); // Bottom
-    add(Obstacle(position: Vector2(-50, 0), size: Vector2(50, size.y))); // Left
-    add(Obstacle(position: Vector2(size.x, 0), size: Vector2(50, size.y))); // Right
+    add(Obstacle(position: Vector2(-50, -50), size: Vector2(size.x + 100, 50))); 
+    add(Obstacle(position: Vector2(-50, size.y), size: Vector2(size.x + 100, 50))); 
+    add(Obstacle(position: Vector2(-50, 0), size: Vector2(50, size.y))); 
+    add(Obstacle(position: Vector2(size.x, 0), size: Vector2(50, size.y))); 
 
-    // Some interior obstacles
-    add(Obstacle(position: Vector2(200, 150), size: Vector2(50, 200)));
-    add(Obstacle(position: Vector2(500, 300), size: Vector2(200, 50)));
-    add(Obstacle(position: Vector2(100, 450), size: Vector2(150, 50)));
+    // Procedural Level
+    MapGenerator.generateLevel(this);
 
     // Subtle Fog Layer
     add(
       RectangleComponent(
         size: size,
         paint: Paint()..color = GameConstants.fogColor,
-        priority: 1, // Draw over obstacles (default priority 0)
+        priority: 1, 
       )
     );
 
     player = Player(position: Vector2(100, 100))..priority = 2;
     add(player);
 
-    bot = Bot(position: Vector2(600, 400))..priority = 2;
+    bot = EnemyBot(position: Vector2(size.x - 100, size.y - 100))..priority = 2;
     add(bot);
+
+    overlays.remove('MainMenu');
+    overlays.remove('GameOver');
+    overlays.add('Hud');
   }
 
   @override
   void update(double dt) {
-    if (_isGameOver) return; // Stop logic if game over
-
+    if (!_isMatchStarted || _isGameOver) return;
     super.update(dt);
     
     _timer -= dt;
@@ -101,20 +112,28 @@ class QuietShotGame extends FlameGame
       onTimeOut();
     }
     
-    if (hudNotifier.value.timeRemaining != _timer.ceil()) {
-      hudNotifier.value = hudNotifier.value.copyWith(timeRemaining: _timer.ceil());
+    if (hudNotifier.value.timeRemaining != _timer.ceil() || 
+        hudNotifier.value.playerReloading != player.isReloading ||
+        hudNotifier.value.botReloading != bot.isReloading) {
+      hudNotifier.value = hudNotifier.value.copyWith(
+        timeRemaining: _timer.ceil(),
+        playerAmmo: player.ammo,
+        botAmmo: bot.ammo,
+        playerReloading: player.isReloading,
+        botReloading: bot.isReloading,
+      );
     }
   }
 
   void onPlayerDied() {
     _isGameOver = true;
-    hudNotifier.value = hudNotifier.value.copyWith(winner: 'Bot Wins!');
+    hudNotifier.value = hudNotifier.value.copyWith(winner: 'BOT WINS!');
     overlays.add('GameOver');
   }
 
   void onBotDied() {
     _isGameOver = true;
-    hudNotifier.value = hudNotifier.value.copyWith(winner: 'Player Wins!');
+    hudNotifier.value = hudNotifier.value.copyWith(winner: 'PLAYER WINS!');
     overlays.add('GameOver');
   }
 
@@ -122,13 +141,20 @@ class QuietShotGame extends FlameGame
     _isGameOver = true;
     String winner;
     if (player.health > bot.health) {
-      winner = 'Time Up! Player Wins by Health';
+      winner = 'TIME UP! PLAYER WINS';
     } else if (bot.health > player.health) {
-      winner = 'Time Up! Bot Wins by Health';
+      winner = 'TIME UP! BOT WINS';
     } else {
-      winner = 'Time Up! Draw!';
+      winner = 'DRAW!';
     }
     hudNotifier.value = hudNotifier.value.copyWith(winner: winner);
     overlays.add('GameOver');
+  }
+
+  void resetGame() {
+    overlays.add('MainMenu');
+    overlays.remove('GameOver');
+    overlays.remove('Hud');
+    _isMatchStarted = false;
   }
 }
