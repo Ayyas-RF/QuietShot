@@ -108,10 +108,14 @@ class EnemyBot extends SpriteComponent with CollisionCallbacks, HasGameReference
     }
 
     final ray = Ray2(origin: player.position, direction: dirToBot);
+    
+    final ignoreList = [player.hitbox, hitbox];
+    ignoreList.addAll(game.children.whereType<Bullet>().expand((b) => b.children.whereType<ShapeHitbox>()));
+
     final raycastResult = game.collisionDetection.raycast(
       ray,
       maxDistance: distance,
-      ignoreHitboxes: [player.hitbox, hitbox],
+      ignoreHitboxes: ignoreList,
     );
 
     isVisibleToPlayer = raycastResult == null || !raycastResult.isActive;
@@ -122,11 +126,15 @@ class EnemyBot extends SpriteComponent with CollisionCallbacks, HasGameReference
     final distance = position.distanceTo(player.position);
     
     bool canSeePlayer = false;
-    if (distance < 400) {
+    if (distance < GameConstants.fovDistance) {
       final dirToPlayer = (player.position - position).normalized();
       final ray = Ray2(origin: position, direction: dirToPlayer);
+      
+      final ignoreList = [hitbox, player.hitbox];
+      ignoreList.addAll(game.children.whereType<Bullet>().expand((b) => b.children.whereType<ShapeHitbox>()));
+
       final raycastResult = game.collisionDetection.raycast(
-        ray, maxDistance: distance, ignoreHitboxes: [hitbox, player.hitbox]
+        ray, maxDistance: distance, ignoreHitboxes: ignoreList
       );
       if (raycastResult == null || !raycastResult.isActive) {
         canSeePlayer = true;

@@ -14,7 +14,7 @@ class GameConstants {
   static const double playerSize = 32.0;
 
   static const double fovDistance = 350.0;
-  static const double fovAngle = 1.0; // Radians, approx 57/2 = 28 degrees on each side? Wait, 1.0 is ~57 degrees total. Let's make it 1.2.
+  static const double fovAngle = 1.2; // ~68 degrees total cone
   static const int rayCount = 60; // Accuracy of FOV
 
   static const int ammoPerMag = 10;

@@ -7,6 +7,7 @@ import '../utils/constants.dart';
 import '../game/quiet_shot_game.dart';
 
 import 'package:flame/collisions.dart';
+import 'bullet.dart';
 
 class FOVCone extends PositionComponent with HasGameReference<QuietShotGame> {
   final Paint _paint;
@@ -47,10 +48,14 @@ class FOVCone extends PositionComponent with HasGameReference<QuietShotGame> {
 
       Ray2 ray = Ray2(origin: origin, direction: direction);
       
+      // Ignore self, player children (hitboxes), and ALL bullets in the game
+      final ignoreList = (parent as PositionComponent).children.whereType<ShapeHitbox>().toList();
+      ignoreList.addAll(game.children.whereType<Bullet>().expand((b) => b.children.whereType<ShapeHitbox>()));
+
       final raycastResult = game.collisionDetection.raycast(
         ray,
         maxDistance: GameConstants.fovDistance,
-        ignoreHitboxes: (parent as PositionComponent).children.whereType<ShapeHitbox>().toList(),
+        ignoreHitboxes: ignoreList,
       );
 
       Vector2 hitPoint;
